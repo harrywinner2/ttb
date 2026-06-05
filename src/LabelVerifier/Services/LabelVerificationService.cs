@@ -16,8 +16,11 @@ public sealed partial class LabelVerificationService
     private readonly FallbackLabelReader _reader;
     private readonly ILogger<LabelVerificationService> _log;
 
-    // Tolerances for fuzzy text fields.
-    private const double PassThreshold = 0.90;
+    // Compliance posture: the tool only AUTO-CLEARS exact matches (after normalising case,
+    // punctuation, accents and whitespace) or clean containments. Anything with a residual
+    // textual difference is escalated to a human (Review), never silently passed — because on
+    // an official record even a small discrepancy may warrant rejection. Below this similarity
+    // floor the values are too different to be the same thing, so it's a Fail.
     private const double ReviewThreshold = 0.72;
 
     public LabelVerificationService(FallbackLabelReader reader, ILogger<LabelVerificationService> log)
@@ -130,15 +133,11 @@ public sealed partial class LabelVerificationService
         }
 
         var sim = TextMatching.Similarity(expected, found);
-        if (sim >= PassThreshold)
+        if (sim >= ReviewThreshold)
         {
-            check.Status = CheckStatus.Pass;
-            check.Detail = $"Matches (minor differences, {sim:P0} similar).";
-        }
-        else if (sim >= ReviewThreshold)
-        {
+            // Similar but not exactly equal → never auto-passed on an official record.
             check.Status = CheckStatus.Review;
-            check.Detail = $"Close but not certain ({sim:P0} similar) — please verify by eye.";
+            check.Detail = $"Close but not identical ({sim:P0} similar) — please confirm; on an official label even a small discrepancy may need to be rejected.";
         }
         else
         {

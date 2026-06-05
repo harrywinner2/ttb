@@ -40,6 +40,14 @@ The exact text enforced (27 CFR Part 16):
 > of alcoholic beverages impairs your ability to drive a car or operate machinery, and may
 > cause health problems.
 
+**Verdict policy (compliance-first).** The tool only **auto-clears (Pass)** an exact match —
+after normalising case, punctuation, accents and whitespace — or a clean containment. *Any*
+residual textual difference is escalated to **Review** for a human, never silently passed,
+because on an official record even a small discrepancy can be disqualifying. A real example
+that drove this — application "Van Winkle" vs label "Van Winkle Special Reserve" — is shown in
+[docs/REAL-WORLD-FINDINGS.md](docs/REAL-WORLD-FINDINGS.md). The machine narrows the routine
+load (Sarah's "drowning" problem); the agent makes the call.
+
 **Single** and **batch** modes are both supported — batch handles the "an importer dumped
 300 applications on us" case, processes them concurrently, lets you filter to just the
 failures, and exports the results to CSV.
@@ -172,6 +180,11 @@ photographs** (sourced from Wikimedia Commons) by driving the real site through 
 Chromium with Puppeteer — uploading each photo and reading the on-screen verdict, once with
 the cloud engine and once with the **firewall toggle** (offline OCR). Harness:
 [`realtest/drive.js`](realtest/drive.js).
+
+> 📊 **See the results without running anything:** [**docs/REAL-WORLD-FINDINGS.md**](docs/REAL-WORLD-FINDINGS.md)
+> shows each test photo next to what the cloud engine and the offline OCR read.
+> 🛠️ The deeper write-up — **replacing the OCR**, plus **security** and **scalability** — is in
+> [**docs/ENGINEERING-NOTES.md**](docs/ENGINEERING-NOTES.md).
 
 Photos used (all genuinely hard — angles, reflections, script fonts, dim light, small text):
 Evan Williams (two bottles, angled), Gentleman Jack (small label across a counter), Old Rip
