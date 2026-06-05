@@ -17,6 +17,9 @@ publish/
 *.secrets.json
 appsettings.*.Local.json
 
+# Tooling / agent artifacts
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
