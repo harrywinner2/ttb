@@ -252,9 +252,19 @@ faces of a boxy bottle or carton). The point is full coverage of the required te
 fixed set of shots. Each required element (brand, class/type, ABV, net contents, bottler,
 country of origin, Government Warning) can then be located on whichever image carries it.
 
-**Representing multiple images per product — CSV vs JSON.** A flat CSV maps one row to one
-file, which does not express grouping cleanly. A **JSON manifest** is the better fit, because
-each product owns an explicit list of images:
+### The manifest: CSV *or* JSON (pick one)
+
+The batch upload takes an **optional** manifest of the expected values. It can be **CSV or
+JSON** — two interchangeable formats:
+
+- **CSV** — flat, **one row per image**. Use when each product is a single image.
+- **JSON** — lets you **group several images under one product** (front + back, or four sides).
+  Use this for multi-image products.
+
+(With no manifest at all, each uploaded image is treated as its own single-image product.)
+
+**The JSON file is a top-level array of product objects.** Every field is optional except
+`images`, which links a product to its uploaded files:
 
 ```json
 [
@@ -264,16 +274,43 @@ each product owns an explicit list of images:
     "brand_name": "Old Tom Distillery",
     "class_type": "Kentucky Straight Bourbon Whiskey",
     "alcohol_content": "45% Alc./Vol.",
+    "net_contents": "750 mL",
+    "bottler": "Old Tom Distillery, Bardstown, KY",
+    "country": "Product of Mexico"
+  },
+  {
+    "product": "Red Oak Cabernet",
+    "images": ["redoak.jpg"],
+    "brand_name": "Red Oak Cellars",
+    "class_type": "Cabernet Sauvignon",
+    "alcohol_content": "13.5%",
     "net_contents": "750 mL"
   }
 ]
 ```
 
-**This is implemented.** The batch endpoint accepts either a CSV (one image per row,
-back-compatible) or this JSON manifest. For a multi-image product, every image is read and the
-results are **merged** into one verification — the front supplies the brand/ABV while the back
-supplies the Government Warning — before the verdict is produced. (CSV remains supported for
-the simple one-image-per-row case.)
+| Key | Meaning |
+|---|---|
+| `images` | **Links the product to the uploaded files.** Array of filenames that must match the images you upload (up to 4). A single `"image": "x.jpg"` string also works. |
+| `product` | Label shown in the results row (defaults to the first image name). |
+| `brand_name` | Expected brand (from the application / COLA). |
+| `class_type` | Expected class/type. |
+| `alcohol_content` | Expected ABV. |
+| `net_contents` | Expected net contents. |
+| `bottler` | Expected bottler / producer. |
+| `country` | Expected country of origin. |
+
+Keys are **case-insensitive and `_`/space-insensitive**, with aliases (`brand_name` =
+`brandName` = `brand`; `class_type` = `class` = `type`; `alcohol_content` = `abv`; etc.). Any
+uploaded image **not** named in the manifest becomes its own single-image product.
+
+The **CSV** form uses the same fields as columns, with a `filename` column in place of
+`images`. [`samples/manifest.json`](samples/manifest.json) and
+[`samples/manifest.csv`](samples/manifest.csv) are the same six products in each format.
+
+**Implemented.** For a multi-image product, every image is read and the results are **merged**
+into one verification — one image can supply the brand/ABV while another supplies the
+Government Warning — before the verdict is produced.
 
 ---
 
