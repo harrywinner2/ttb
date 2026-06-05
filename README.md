@@ -48,9 +48,11 @@ that drove this — application "Van Winkle" vs label "Van Winkle Special Reserv
 [docs/REAL-WORLD-FINDINGS.md](docs/REAL-WORLD-FINDINGS.md). The machine narrows the routine
 load (Sarah's "drowning" problem); the agent makes the call.
 
-**Single** and **batch** modes are both supported — batch handles the "an importer dumped
-300 applications on us" case, processes them concurrently, lets you filter to just the
-failures, and exports the results to CSV.
+**Single** and **batch** modes are both supported. Batch handles the "an importer dumped
+300 applications on us" case: it accepts an optional **CSV or JSON** manifest of expected
+values, runs products on an **asynchronous, parallel** job (the client polls for incremental
+results, so no single request is held open), supports **multiple images per product**
+(front/back/neck/box), lets you filter to the failures, and exports to CSV.
 
 ---
 
@@ -85,25 +87,39 @@ The discovery notes shaped every major decision:
 
 ```
 Browser (static HTML/CSS/JS in wwwroot)
-   │  multipart upload: image(s) + expected fields (+ optional CSV manifest)
+   │  multipart upload: image(s) + expected fields (+ optional CSV/JSON manifest)
    ▼
 ASP.NET Core 8 minimal API  (src/LabelVerifier)
+   │  security headers · per-IP rate limit · non-root container
    │
-   ├── FallbackLabelReader ──► AzureOpenAiLabelReader  (primary: gpt-4o vision → JSON)
-   │                       └─► TesseractLabelReader    (offline OCR fallback)
-   │
-   └── LabelVerificationService
-         ├── TextMatching        (normalise + Levenshtein fuzzy match)
-         └── GovernmentWarning   (strict caps + word-for-word check)
+   ├── single:  /api/verify
+   └── batch:   /api/batch/jobs  →  job id        (async)
+                /api/batch/jobs/{id}  →  progress + results   (poll)
+                       │
+                       ▼  bounded parallel workers
+   ┌───────────────────────────────────────────────┐
+   │ per product (1–4 images):                      │
+   │   FallbackLabelReader ─► AzureOpenAiLabelReader │ (primary: gpt-4o vision → JSON)
+   │                       └─► TesseractLabelReader  │ (offline OCR fallback)
+   │   → merge readings (front=brand, back=warning)  │
+   │   → LabelVerificationService                    │
+   │        ├── TextMatching      (fuzzy match)      │
+   │        └── GovernmentWarning (strict check)     │
+   └───────────────────────────────────────────────┘
 ```
 
 Key design points:
 
 - **`ILabelReader`** makes the reading engine swappable; `FallbackLabelReader` owns the
   primary→fallback decision and reports which engine actually ran.
+- **Multiple images per product are merged** into a single reading before verification, so the
+  front label can supply the brand while the back supplies the Government Warning.
+- **Batch is asynchronous and parallel.** A job is processed by bounded parallel workers and the
+  client polls for incremental results, so no single request is held open (configurable degree;
+  default 8).
 - **Warning caps are derived from the model's *literal transcription*, not its self-report.**
   `gpt-4o` faithfully copies the heading's casing into the text but is unreliable when asked
-  "is this all caps?" — so the code judges capitalisation from the transcribed characters.
+  "is this all caps?" — so capitalisation is judged from the transcribed characters.
 - **Bold is advisory.** Typographic weight can't be read by OCR and the vision model judges
   it unreliably, so a missing/uncertain bold never hard-fails an otherwise-correct label; it
   surfaces as a note for a human glance. (See *Trade-offs*.)
@@ -175,7 +191,7 @@ python3 samples/generate_labels.py
 
 ## Real-world testing
 
-Beyond the synthetic samples, I tested the **live deployment with actual product
+Beyond the synthetic samples, the **live deployment was tested with actual product
 photographs** (sourced from Wikimedia Commons) by driving the real site through a headless
 Chromium with Puppeteer — uploading each photo and reading the on-screen verdict, once with
 the cloud engine and once with the **firewall toggle** (offline OCR). Harness:
@@ -222,12 +238,51 @@ What the real test surfaced:
 
 ---
 
+## Recommendation: require multiple images per product
+
+The real-world testing made a structural point clear: **a single front-label photograph is
+insufficient evidence for a full compliance check.** The mandatory Government Warning lives on
+the *back* of the container, so a front-only image can never satisfy it — every real photo
+tested was correctly flagged as "warning not present," which is accurate but not actionable.
+
+The recommendation is therefore to **require submitters (importers, producers) to provide
+multiple images per product** — typically up to **four**: front label, back label, neck/strip
+label, and, where applicable, the **gift carton or wine box**. Each required element (brand,
+class/type, ABV, net contents, bottler, country of origin, Government Warning) can then be
+located on whichever image carries it.
+
+**Representing multiple images per product — CSV vs JSON.** A flat CSV maps one row to one
+file, which does not express grouping cleanly. A **JSON manifest** is the better fit, because
+each product owns an explicit list of images:
+
+```json
+[
+  {
+    "product": "Old Tom Bourbon 750",
+    "images": ["oldtom_front.jpg", "oldtom_back.jpg", "oldtom_neck.jpg"],
+    "brand_name": "Old Tom Distillery",
+    "class_type": "Kentucky Straight Bourbon Whiskey",
+    "alcohol_content": "45% Alc./Vol.",
+    "net_contents": "750 mL"
+  }
+]
+```
+
+**This is implemented.** The batch endpoint accepts either a CSV (one image per row,
+back-compatible) or this JSON manifest. For a multi-image product, every image is read and the
+results are **merged** into one verification — the front supplies the brand/ABV while the back
+supplies the Government Warning — before the verdict is produced. (CSV remains supported for
+the simple one-image-per-row case.)
+
+---
+
 ## Deployment
 
 The container image is hosted in **Azure Container Registry** and runs on **Azure Container
 Apps** (serverless containers, public HTTPS, scales on demand). Azure OpenAI credentials are
-injected as Container App secrets/environment variables — never baked into the image. See
-[`deploy/deploy.sh`](deploy/deploy.sh) for the exact, repeatable provisioning steps.
+injected as Container App secrets/environment variables — never baked into the image. The
+container runs as a non-root user, sets HTTP security headers, and rate-limits per client IP.
+See [`deploy/deploy.sh`](deploy/deploy.sh) for the exact, repeatable provisioning steps.
 
 ---
 
@@ -236,8 +291,8 @@ injected as Container App secrets/environment variables — never baked into the
 - **Prototype, not a system of record.** Per IT's guidance, it does **not** integrate with
   COLA and stores nothing: images are processed in memory and discarded. No PII retention, no
   database.
-- The "application data" is entered by the agent (single mode) or supplied as a CSV manifest
-  (batch mode), standing in for what COLA would provide.
+- The "application data" is entered by the agent (single mode) or supplied as a CSV/JSON
+  manifest (batch mode), standing in for what COLA would provide.
 - Warning enforcement targets the standard statement under 27 CFR Part 16; the many
   beverage-specific type-size/placement rules are out of scope for a prototype.
 
@@ -257,6 +312,9 @@ injected as Container App secrets/environment variables — never baked into the
 - **Firewall reality.** In TTB's real network the cloud call would be blocked; that's the
   whole point of the offline fallback. Production would either run fully offline (OCR + a
   local model) or call Azure OpenAI from *within* the FedRAMP boundary.
+- **Batch state is in-memory.** The async job store lives in the app process — fine for a
+  prototype; production swaps it for a durable queue + result store (see
+  [docs/ENGINEERING-NOTES.md](docs/ENGINEERING-NOTES.md#scalability)).
 
 ---
 
@@ -264,13 +322,16 @@ injected as Container App secrets/environment variables — never baked into the
 
 ```
 src/LabelVerifier/        ASP.NET Core app
-  Models/                 LabelApplication, LabelReading, VerificationResult
+  Models/                 LabelApplication, LabelReading, VerificationResult, Batch (jobs/products)
   Engines/                ILabelReader, Azure OpenAI + Tesseract, fallback orchestrator
-  Services/               TextMatching, GovernmentWarning, LabelVerificationService
-  Endpoints/              /api/verify, /api/verify/batch, /api/health
+  Services/               TextMatching, GovernmentWarning, LabelVerificationService,
+                          BatchJobStore, BatchProcessor (bounded parallel)
+  Endpoints/              /api/verify, /api/batch/jobs, /api/verify/batch, /api/health
   wwwroot/                the single-page UI
-  Dockerfile
+  Dockerfile              (multi-stage; tesseract; non-root)
 tests/LabelVerifier.Tests/ xUnit tests for the verification logic
 samples/                  generated test labels + manifest.csv + generator script
+realtest/                 Puppeteer harness for live testing with real photos
+docs/                     real-world findings (with images) + engineering notes
 deploy/                   provisioning script
 ```

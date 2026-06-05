@@ -153,7 +153,7 @@ function setupBatch() {
   btn.addEventListener("click", async () => {
     if (!files.length) return;
     const out = $("#batchResult");
-    out.innerHTML = spinner(`Checking ${files.length} labels… this can take a moment.`);
+    out.innerHTML = spinner(`Uploading ${files.length} image${files.length > 1 ? "s" : ""}…`);
     btn.disabled = true;
 
     const fd = new FormData();
@@ -162,17 +162,32 @@ function setupBatch() {
     applyEngine(fd);
 
     try {
-      const r = await fetch("/api/verify/batch", { method: "POST", body: fd });
+      // Submit the job, then poll for incremental progress (so a big batch never
+      // holds one long request open and the user sees results stream in).
+      const r = await fetch("/api/batch/jobs", { method: "POST", body: fd });
       const data = await r.json();
-      if (!r.ok) { out.innerHTML = errorBox(data.error || "Something went wrong."); return; }
-      out.innerHTML = "";
-      out.appendChild(renderBatch(data));
+      if (!r.ok) { out.innerHTML = errorBox(data.error || "Something went wrong."); btn.disabled = false; return; }
+      pollJob(data.jobId, out, () => { btn.disabled = false; });
     } catch {
       out.innerHTML = errorBox("Could not reach the server. Please try again.");
-    } finally {
       btn.disabled = false;
     }
   });
+}
+
+async function pollJob(jobId, out, onDone) {
+  try {
+    const r = await fetch(`/api/batch/jobs/${jobId}`);
+    const job = await r.json();
+    if (!r.ok) { out.innerHTML = errorBox(job.error || "Job error."); onDone(); return; }
+    out.innerHTML = "";
+    out.appendChild(renderBatch(job));
+    if (job.status === "completed") { onDone(); return; }
+    setTimeout(() => pollJob(jobId, out, onDone), 1500);
+  } catch {
+    out.innerHTML = errorBox("Lost connection while processing. Please retry.");
+    onDone();
+  }
 }
 
 /* ---------------- Rendering ---------------- */
@@ -248,6 +263,9 @@ function renderWarning(w) {
 
 function renderBatch(data) {
   const frag = document.createDocumentFragment();
+  if (data.status && data.status !== "completed") {
+    frag.appendChild(html(`<div class="spinner-wrap"><div class="spinner" role="status" aria-label="Processing"></div><span>Processing in parallel… ${data.completed} of ${data.total} done</span></div>`));
+  }
   frag.appendChild(html(`
     <div class="summary">
       <div class="stat pass"><span class="n">${data.pass}</span><span class="lbl">Passed</span></div>

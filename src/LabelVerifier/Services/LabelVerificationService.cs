@@ -31,27 +31,55 @@ public sealed partial class LabelVerificationService
 
     public FallbackLabelReader Reader => _reader;
 
-    public async Task<VerificationResult> VerifyAsync(
+    public Task<VerificationResult> VerifyAsync(
         byte[] imageBytes, string contentType, LabelApplication app, bool forceFallback = false, CancellationToken ct = default)
+        => VerifyProductAsync(new[] { new ImageBlob(imageBytes, contentType) }, app, forceFallback, ct);
+
+    /// <summary>
+    /// Verifies one product that may be represented by several images (front, back, neck, gift
+    /// box). Each image is read, the readings are merged into one — the front usually supplies
+    /// the brand/ABV, the back supplies the Government Warning — then the merged reading is
+    /// verified once. A single-image submission is just the trivial case.
+    /// </summary>
+    public async Task<VerificationResult> VerifyProductAsync(
+        IReadOnlyList<ImageBlob> images, LabelApplication app, bool forceFallback = false, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var result = new VerificationResult { FileName = app.FileName };
 
-        LabelReading reading;
-        try
+        var readings = new List<LabelReading>();
+        foreach (var img in images)
         {
-            reading = await _reader.ReadAsync(imageBytes, contentType, forceFallback, ct);
+            try
+            {
+                readings.Add(await _reader.ReadAsync(img.Bytes, img.ContentType, forceFallback, ct));
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Failed to read an image for {File}", app.FileName);
+            }
         }
-        catch (Exception ex)
+
+        if (readings.Count == 0)
         {
             sw.Stop();
-            _log.LogError(ex, "Failed to read label {File}", app.FileName);
             result.Overall = CheckStatus.Fail;
-            result.Error = "The label image could not be read. Try a clearer, well-lit, straight-on photo.";
+            result.Error = "The label image(s) could not be read. Try clearer, well-lit, straight-on photos.";
             result.ProcessingMs = sw.ElapsedMilliseconds;
             return result;
         }
 
+        var reading = readings.Count == 1 ? readings[0] : Merge(readings);
+        BuildResult(result, reading, app);
+
+        result.Overall = RollUp(result);
+        sw.Stop();
+        result.ProcessingMs = sw.ElapsedMilliseconds;
+        return result;
+    }
+
+    private static void BuildResult(VerificationResult result, LabelReading reading, LabelApplication app)
+    {
         result.Reading = reading;
         result.EngineUsed = reading.EngineUsed;
 
@@ -63,12 +91,48 @@ public sealed partial class LabelVerificationService
         result.Fields.Add(CheckText("Country of origin", app.CountryOfOrigin, reading.CountryOfOrigin, reading.RawText, allowPartial: true));
 
         result.Warning = GovernmentWarning.Check(reading);
-
-        result.Overall = RollUp(result);
-        sw.Stop();
-        result.ProcessingMs = sw.ElapsedMilliseconds;
-        return result;
     }
+
+    /// <summary>
+    /// Combines several images of one product into a single reading: each scalar field takes the
+    /// first image that supplied it (front usually wins for brand/ABV), and the warning fields
+    /// are taken from whichever image produced the strongest warning check (usually the back).
+    /// </summary>
+    private static LabelReading Merge(IReadOnlyList<LabelReading> readings)
+    {
+        string? First(Func<LabelReading, string?> sel) =>
+            readings.Select(sel).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+        var bestWarning = readings
+            .Select(r => (r, chk: GovernmentWarning.Check(r)))
+            .OrderBy(x => WarningRank(x.chk))
+            .First().r;
+
+        return new LabelReading
+        {
+            BrandName = First(r => r.BrandName),
+            ClassType = First(r => r.ClassType),
+            AlcoholContent = First(r => r.AlcoholContent),
+            NetContents = First(r => r.NetContents),
+            BottlerNameAddress = First(r => r.BottlerNameAddress),
+            CountryOfOrigin = First(r => r.CountryOfOrigin),
+            GovernmentWarningText = bestWarning.GovernmentWarningText,
+            WarningHeadingAllCaps = bestWarning.WarningHeadingAllCaps,
+            WarningHeadingBold = bestWarning.WarningHeadingBold,
+            RawText = string.Join("\n--- (next image) ---\n",
+                readings.Select(r => r.RawText).Where(t => !string.IsNullOrWhiteSpace(t))),
+            EngineUsed = readings[0].EngineUsed + (readings.Count > 1 ? $" · merged from {readings.Count} images" : ""),
+            Notes = string.Join(" | ", readings.Select(r => r.Notes).Where(n => !string.IsNullOrWhiteSpace(n))),
+        };
+    }
+
+    // Lower rank == stronger warning, so it sorts first.
+    private static int WarningRank(WarningCheck c) => c.Status switch
+    {
+        CheckStatus.Pass => 0,
+        CheckStatus.Review => 1,
+        _ => c.Present ? 2 : 3,
+    };
 
     private static CheckStatus RollUp(VerificationResult r)
     {

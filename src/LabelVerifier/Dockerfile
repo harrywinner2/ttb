@@ -18,8 +18,11 @@ RUN apt-get update \
 
 COPY --from=build /app .
 
-# Azure App Service for Containers expects the app on 8080.
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
+
+# Run as the image's built-in non-root user (least privilege). Tesseract uses /tmp, which is
+# world-writable, and the app only reads from /app.
+USER $APP_UID
 
 ENTRYPOINT ["dotnet", "LabelVerifier.dll"]

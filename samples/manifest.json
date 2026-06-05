@@ -1,0 +1,53 @@
+[
+  {
+    "product": "Old Tom Bourbon",
+    "images": ["01_old_tom_bourbon_ok.png"],
+    "brand_name": "Old Tom Distillery",
+    "class_type": "Kentucky Straight Bourbon Whiskey",
+    "alcohol_content": "45% Alc./Vol.",
+    "net_contents": "750 mL",
+    "bottler": "Old Tom Distillery, Bardstown, KY"
+  },
+  {
+    "product": "Stone's Throw Gin",
+    "images": ["02_stones_throw_gin_casediff.png"],
+    "brand_name": "Stone's Throw",
+    "class_type": "London Dry Gin",
+    "alcohol_content": "47%",
+    "net_contents": "750 mL"
+  },
+  {
+    "product": "Iron Ridge Rye",
+    "images": ["03_titlecase_warning_fail.png"],
+    "brand_name": "Iron Ridge",
+    "class_type": "Straight Rye Whiskey",
+    "alcohol_content": "50%",
+    "net_contents": "750 mL"
+  },
+  {
+    "product": "Blue Heron Tequila",
+    "images": ["04_missing_warning_fail.png"],
+    "brand_name": "Blue Heron",
+    "class_type": "Silver Tequila",
+    "alcohol_content": "40%",
+    "net_contents": "750 mL",
+    "country": "Product of Mexico"
+  },
+  {
+    "product": "Cedar Creek Single Malt",
+    "images": ["05_abv_mismatch_fail.png"],
+    "brand_name": "Cedar Creek",
+    "class_type": "Single Malt Whisky",
+    "alcohol_content": "43% Alc./Vol.",
+    "net_contents": "700 mL",
+    "country": "Product of Scotland"
+  },
+  {
+    "product": "Red Oak Cabernet",
+    "images": ["06_red_oak_wine_ok.png"],
+    "brand_name": "Red Oak Cellars",
+    "class_type": "Cabernet Sauvignon",
+    "alcohol_content": "13.5%",
+    "net_contents": "750 mL"
+  }
+]

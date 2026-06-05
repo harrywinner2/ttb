@@ -129,14 +129,16 @@
 
         <h2 class="mt"><span class="step">2</span> Add expected values <em>(optional)</em></h2>
         <p class="help">
-          Upload a <strong>CSV</strong> with a <code>filename</code> column plus any of
+          Upload a <strong>CSV</strong> (one image per row) with a <code>filename</code> column plus any of
           <code>brand_name</code>, <code>class_type</code>, <code>alcohol_content</code>,
-          <code>net_contents</code>, <code>bottler</code>, <code>country</code>.
-          Without it, every label is still checked for the Government Warning and its fields are read for review.
+          <code>net_contents</code>, <code>bottler</code>, <code>country</code> — or a
+          <strong>JSON</strong> manifest to group <strong>several images per product</strong>
+          (front, back, neck, gift box; up to 4) using an <code>"images": [ … ]</code> list.
+          Without a manifest, each image is treated as its own product. Processing runs in parallel.
         </p>
         <label class="file-pill" for="manifestFile">
-          <input id="manifestFile" type="file" accept=".csv,text/csv" hidden />
-          <span id="manifestName">📄 Choose CSV (optional)</span>
+          <input id="manifestFile" type="file" accept=".csv,.json,text/csv,application/json" hidden />
+          <span id="manifestName">📄 Choose CSV or JSON (optional)</span>
         </label>
       </div>
 

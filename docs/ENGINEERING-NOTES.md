@@ -1,125 +1,119 @@
 # Engineering notes
 
-Deeper notes on three things an evaluator will rightly poke at: why the offline OCR fails so
-badly (and how to fix it), and how the architecture handles **security** and **scalability**.
+Technical detail on three areas a reviewer is likely to probe: the limits of the offline OCR
+engine (and how to lift them), and how the architecture handles **security** and
+**scalability**. Items are split into what the prototype **implements** and what is
+**recommended** for a production system.
 
 ---
 
-## Why the offline OCR fails so badly
+## Offline OCR: why it fails on photographs
 
-### What we do today
-The offline engine shells out to the **Tesseract** CLI over the **entire uploaded image** at
-`--psm 3` (automatic page segmentation). There is **no label localisation, no cropping, and no
-image preprocessing**.
+### Current behaviour
+The offline engine invokes the Tesseract CLI over the **entire uploaded image** (`--psm 3`),
+with **no label localisation and no preprocessing**.
 
-### The cropping question — answer: no, we were *not* cropping the right region
-We OCR the **whole photo**. On a real picture where the label is a small, angled, glossy patch
-in a large scene — the Gentleman Jack shot, where the label is ~5% of the frame — Tesseract
-(which is built for flat, high-contrast *document scans*) has almost nothing to lock onto:
-counter, reflections, the metal tray, background. The zoom crop on the
-[findings page](REAL-WORLD-FINDINGS.md#2-gentleman-jack--small-label-shot-across-a-counter)
-proves the text **is** legible — the engine just never saw it isolated. So a large part of the
-failure is **our pipeline, not only the OCR engine**.
+### The core problem: no region-of-interest selection
+Running OCR on the whole photo is a poor fit for real product shots, where the label is a
+small, angled, often glossy region inside a larger scene. A controlled experiment
+([`realtest/`](../realtest/)) on the test photographs makes the failure modes precise:
 
-### How to make the offline path degrade gracefully (cheapest first)
-1. **Label localisation (ROI crop).** Find the label/bottle and crop to it *before* OCR. Either
-   a lightweight detector (a YOLO-class model trained on bottles/labels) or classical CV
-   (largest bright quadrilateral, or MSER/east text-region detection). Even a rough crop removes
-   most of the noise — this alone would have rescued the Gentleman Jack case.
-2. **Geometric correction.** Deskew and perspective-correct; for cylindrical bottles, *label
-   unwrapping* (dewarp) to flatten curved text.
-3. **Image cleanup.** Grayscale → denoise → CLAHE/contrast → adaptive/Otsu threshold → upscale
-   small text. Tesseract accuracy is extremely sensitive to this.
-4. **A modern OCR engine instead of Tesseract.** **PaddleOCR**, **EasyOCR**, or **docTR** are
-   deep-learning detect-then-recognise pipelines built for *scene text* (angled, stylised,
-   low-contrast). They run fully offline and dramatically outperform Tesseract on photographs.
-5. **The real on-prem answer: a local vision-language model.** A quantised small VLM
-   (Qwen2-VL / Llama-3.2-Vision class) running **inside the FedRAMP boundary** gives near-cloud
-   quality with **zero outbound traffic** — the true firewall-compatible equivalent of `gpt-4o`.
-   Heavier (needs a GPU), but it's the production-grade offline engine.
+| Input to Tesseract | Result |
+|---|---|
+| Gentleman Jack — whole image | noise only |
+| Gentleman Jack — cropped to the label | still noise (low-contrast **embossed silver** lettering) |
+| Old Rip Van Winkle — whole image | mostly noise |
+| Old Rip Van Winkle — cropped to the label | recovers real words ("Kentucky", "Special Reserve") |
+| Either — crop + naïve global threshold | no improvement, sometimes worse |
 
-**Recommended order for TTB:** (a) add ROI-crop + preprocessing now (big win, low cost);
-(b) swap Tesseract → PaddleOCR for the no-GPU offline tier; (c) stand up a local VLM within the
-Azure boundary as the high-accuracy offline engine. Thanks to the **`ILabelReader` seam**, each
-is a drop-in replacement — **no change to the matching logic, warning checks, or UI**.
+Two conclusions follow. First, the **absence of cropping is a major factor** — isolating the
+label recovers readable text on a moderate-contrast label. Second, **cropping alone is not
+sufficient**: low-contrast or embossed lettering defeats Tesseract regardless, and a single
+global threshold is the wrong preprocessing tool (it destroys low-contrast detail).
 
-> Side benefit: a localisation step also unlocks **real bold detection**. Today "is the
-> `GOVERNMENT WARNING` heading bold?" is advisory because neither OCR nor the VLM judges type
-> weight reliably; stroke-width analysis on the *cropped heading* could enforce it properly.
+### Recommended pipeline (fully offline, no outbound traffic)
+1. **Region-of-interest localisation** — a lightweight detector (YOLO-class, trained on
+   bottles/labels) or classical CV (largest bright quadrilateral, MSER/EAST text regions) to
+   crop the label before recognition.
+2. **Geometric correction** — deskew, perspective-correct, and unwrap cylindrical labels.
+3. **Adaptive preprocessing** — grayscale, CLAHE, **adaptive/Sauvola** thresholding (not a
+   global cutoff), and upscaling of small text.
+4. **A scene-text OCR engine** — PaddleOCR, EasyOCR, or docTR in place of Tesseract; these are
+   built for angled, stylised, low-contrast text and outperform Tesseract on photographs.
+5. **A local vision-language model** inside the FedRAMP boundary — near-cloud accuracy with
+   zero egress; the production-grade offline engine.
+
+Each option is a drop-in behind the **`ILabelReader`** interface, with no change to the
+matching logic, warning checks, or UI.
+
+### Context: the actual TTB input
+Tesseract performs well on clean, high-contrast artwork — in testing it transcribed the full
+Government Warning **verbatim** from generated label art, and matched the cloud engine on that
+input. COLA stores print-ready artwork (vector/PDF proofs), not phone snapshots, so the
+offline engine is already adequate for the system's primary input; the photograph case above
+is the degraded fallback that the upgrades target.
+
+> Bold-type detection remains advisory because neither OCR nor a vision model judges stroke
+> weight reliably. A localisation step would also enable stroke-width analysis on the cropped
+> heading, allowing the "bold `GOVERNMENT WARNING`" rule to be enforced rather than flagged.
 
 ---
 
 ## Security
 
-### In place (appropriate for a prototype)
-- **Secrets out of code and git.** The Azure OpenAI key is a **Container App secret** referenced
-  via `secretref:` — never baked into the image or committed. `.env*` is gitignored, as are the
-  proprietary spec PDF and the third-party test images. The working tree is grep-checked for
-  secrets before every push.
-- **No data at rest.** Images are processed **in memory and discarded** — no database, no blob
-  storage, no logging of image content. This matches IT's "don't store anything sensitive"
-  guidance and minimises PII/retention exposure.
-- **Transport security.** HTTPS-only via the Container Apps managed certificate.
-- **Input hardening.** Content-type allowlist (JPG/PNG/WEBP…), 25 MB per-file cap, batch-count
-  and multipart limits, so a malicious upload can't trivially exhaust the host.
-- **Model-side safety.** Azure OpenAI content filters are active (we had to phrase prompts to
-  avoid the prompt-shield's *jailbreak* false-positive — documented in the commit history).
+### Implemented in the prototype
+- **Secrets isolated.** The Azure OpenAI key is held as a Container App secret (`secretref:`),
+  never baked into the image or committed. `.env*`, the specification PDF, and third-party test
+  images are gitignored; the working tree is checked for secrets before each commit.
+- **No data at rest.** Images are processed in memory and discarded — no database, blob
+  storage, or logging of image content.
+- **HTTP security headers** on every response: `Content-Security-Policy`,
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, and
+  `Strict-Transport-Security`.
+- **Per-IP rate limiting** (fixed window) in front of the costly AI endpoint, partitioned by
+  the forwarded client IP (`X-Forwarded-For` honoured behind the Container Apps ingress).
+- **Least privilege.** The container runs as a non-root user (UID 1654).
+- **Input validation.** Content-type allowlist, 25 MB per-file cap, multipart/value limits;
+  Azure OpenAI content filters active.
 
-### Gaps and the production hardening path (stated honestly)
-- **AuthN/Z.** Prototype endpoints are public. Production: **Microsoft Entra ID** in front of the
-  app (the org is already on Azure AD), with role-based access for agents.
-- **Eliminate the key entirely.** Give the Container App a **managed identity** and call Azure
-  OpenAI with Entra tokens — no API key to leak. Same for ACR (managed-identity pull instead of
-  the admin user we used for speed).
-- **Keep the call inside the boundary.** **Private Endpoint + VNet integration** so traffic to
-  Azure OpenAI never crosses the public internet. *This* — not the OCR fallback — is the real
-  production answer to the firewall.
-- **Audit trail.** Every determination logged immutably (who / what / when / result) as a
-  compliance record. The prototype is stateless by design; production needs this.
-- **Edge protection.** Azure Front Door + WAF, per-user rate limiting/quota to prevent
-  cost-abuse of an AI endpoint, and security headers (CSP, HSTS) on the static UI.
-- **Data governance.** Formal PII handling + retention alignment, FedRAMP controls, Key Vault for
-  any residual secrets.
+### Recommended for production
+- **Microsoft Entra ID** authentication with role-based access for agents.
+- **Managed identity** for both Azure OpenAI and the container registry — eliminating the API
+  key and registry admin credentials entirely.
+- **Private Endpoint + VNet integration** so model traffic never leaves the FedRAMP boundary;
+  this is the production answer to the firewall constraint.
+- **Immutable audit log** of every determination, for the compliance record.
+- **Azure Front Door + WAF**, per-user quotas, **Key Vault**, and formal PII/retention
+  governance.
 
 ---
 
 ## Scalability
 
-### Today
-- **Stateless app → free horizontal scale.** Azure Container Apps autoscales **0→3** replicas on
-  HTTP concurrency (KEDA). We set **min-replicas 0** for a cost-free idle demo (~10s cold start).
-- **Bounded batch concurrency** (`SemaphoreSlim` of 6) so a 300-label batch doesn't blow the
-  model's rate limit.
+### Implemented in the prototype
+- **Stateless service.** Azure Container Apps autoscales **0→3** replicas on HTTP concurrency
+  (KEDA); scale-to-zero keeps idle cost near zero.
+- **Asynchronous, parallel batch.** `POST /api/batch/jobs` returns a job id immediately;
+  products are processed by a **bounded parallel worker** (default degree 8, configurable via
+  `Batch:MaxParallelism`), and the client **polls** for incremental results. This decouples
+  throughput from any single request's lifetime — directly addressing the earlier failure where
+  a large synchronous batch exceeded the client timeout on a cold start.
+- **Multiple images per product** (front, back, neck, gift box) are read and **merged** into a
+  single verification, so the brand can come from the front while the Government Warning comes
+  from the back.
 
-### Where it breaks at TTB scale — and the fix
-- **The workload is bursty.** ~150k applications/year ≈ ~600 per business day on average, but the
-  real pattern is "an importer dumps 200–300 at once" (Janet, Seattle). You must absorb bursts,
-  not just the average.
-- **The batch bottleneck is the request lifetime.** Today one HTTP request holds all 300 images
-  open while they process — we literally hit a 90s client timeout on a cold start. The right
-  design is **asynchronous**:
+### Recommended for production scale
+- **Durable queue + autoscaling workers.** Replace the in-memory job store with Azure Storage
+  Queue / Service Bus and KEDA queue-length scaling, persisting results to storage. This
+  absorbs the bursty "200–300 at once" pattern (≈150k applications/year, submitted unevenly).
+- **Model throughput.** Raise quota, adopt **Provisioned Throughput Units** for predictable peak
+  latency, and/or distribute across deployments/regions. Current deployment: `gpt-4o` at
+  **30K TPM (Standard)**.
+- **Latency.** Client-side image downscaling before upload reduces both latency and vision-token
+  cost (cost scales with image size); 5–10s was observed on full-resolution photographs.
+- **SLA.** Production keeps min-replicas ≥ 1 (or pre-warms) to hold the ~5s target.
 
-  ```
-  upload → enqueue (Azure Storage Queue / Service Bus)
-        → worker pool (Container Apps scaling on queue length via KEDA)
-        → results to storage, polled/streamed back to the UI
-  ```
-
-  This decouples throughput from the request and lets workers scale elastically to swallow a
-  burst.
-- **Model throughput is the true ceiling.** We deployed `gpt-4o` at **30K TPM (Standard)**. Scale
-  via higher quota, **Provisioned Throughput Units (PTUs)** for predictable peak latency, and/or
-  multiple deployments/regions behind a load balancer. The work is embarrassingly parallel and
-  per-label cost is a few cents, so cost scales roughly linearly with volume.
-- **Latency lever.** 5–10s per full-resolution photo today. **Client-side downscaling** before
-  upload (a label doesn't need 12 MP) cuts both latency and token cost — vision tokens scale with
-  image size — and keeps us under the ~5s bar.
-- **Cold start vs cost.** Scale-to-zero is right for an evaluator demo; production keeps
-  **min-replicas ≥ 1** (or pre-warms) to hold the ~5s SLA.
-
-### The property that makes all of this cheap
-Two seams do the heavy lifting:
-- **`ILabelReader`** — swap the engine (cloud VLM ↔ on-prem VLM ↔ OCR pipeline) without touching
-  matching or UI.
-- **Pure, stateless verification** — the verdict logic is pure functions over a reading, so it
-  parallelises trivially and is exactly the part covered by unit tests.
+### The enabling property
+Two seams carry the design: **`ILabelReader`** (swap the engine without touching anything
+downstream) and **pure, stateless verification** (parallelises trivially and is the part
+covered by unit tests).
