@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{6AD2747A-5BDB-45F6-A335-5A56A85DA596}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LabelVerifier", "src\LabelVerifier\LabelVerifier.csproj", "{1E63229B-FB22-40A6-8DEA-55EE5A56A652}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8CE36D2D-E1AA-4A8F-98BF-D5184386765A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LabelVerifier.Tests", "tests\LabelVerifier.Tests\LabelVerifier.Tests.csproj", "{583A1B18-11D0-41BE-9029-67815E32CDA0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1E63229B-FB22-40A6-8DEA-55EE5A56A652}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1E63229B-FB22-40A6-8DEA-55EE5A56A652}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1E63229B-FB22-40A6-8DEA-55EE5A56A652}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1E63229B-FB22-40A6-8DEA-55EE5A56A652}.Release|Any CPU.Build.0 = Release|Any CPU
+		{583A1B18-11D0-41BE-9029-67815E32CDA0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{583A1B18-11D0-41BE-9029-67815E32CDA0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{583A1B18-11D0-41BE-9029-67815E32CDA0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{583A1B18-11D0-41BE-9029-67815E32CDA0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1E63229B-FB22-40A6-8DEA-55EE5A56A652} = {6AD2747A-5BDB-45F6-A335-5A56A85DA596}
+		{583A1B18-11D0-41BE-9029-67815E32CDA0} = {8CE36D2D-E1AA-4A8F-98BF-D5184386765A}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TTB Label Verifier</title>
+  <meta name="description" content="Check that an alcohol label matches its application and carries the required Government Warning." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥃</text></svg>" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">✓</span>
+        <div>
+          <h1>Label Verifier</h1>
+          <p class="brand-sub">Alcohol and Tobacco Tax and Trade Bureau &middot; Prototype</p>
+        </div>
+      </div>
+      <div id="engineBadge" class="engine-badge" title="Which reader is active">Checking engine…</div>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+
+    <!-- Mode switch -->
+    <div class="mode-switch" role="tablist" aria-label="Choose how many labels to check">
+      <button id="tabSingle" class="mode-btn is-active" role="tab" aria-selected="true">
+        <span class="mode-icon" aria-hidden="true">🏷️</span> Check one label
+      </button>
+      <button id="tabBatch" class="mode-btn" role="tab" aria-selected="false">
+        <span class="mode-icon" aria-hidden="true">📚</span> Check many at once
+      </button>
+    </div>
+
+    <!-- ============ SINGLE MODE ============ -->
+    <section id="singlePanel" class="panel" role="tabpanel" aria-label="Check one label">
+      <div class="grid">
+        <!-- Step 1: image -->
+        <div class="card">
+          <h2><span class="step">1</span> Add the label photo</h2>
+          <p class="help">A clear, straight-on photo works best. JPG, PNG, or WEBP.</p>
+
+          <label id="dropZone" class="dropzone" for="singleFile" tabindex="0">
+            <input id="singleFile" type="file" accept="image/*" hidden />
+            <div id="dropPrompt" class="dropzone-prompt">
+              <span class="dropzone-icon" aria-hidden="true">📷</span>
+              <span class="dropzone-text">Click to choose a photo</span>
+              <span class="dropzone-sub">or drag it here</span>
+            </div>
+            <img id="preview" class="preview" alt="Label preview" hidden />
+          </label>
+          <button id="clearImage" class="link-btn" hidden>Remove photo</button>
+        </div>
+
+        <!-- Step 2: application data -->
+        <div class="card">
+          <h2><span class="step">2</span> What does the application say?</h2>
+          <p class="help">Type what's on file. Leave blanks if you're not checking that field.</p>
+
+          <form id="appForm" class="fields">
+            <label class="field">
+              <span>Brand name</span>
+              <input name="brandName" type="text" placeholder="OLD TOM DISTILLERY" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Class / type</span>
+              <input name="classType" type="text" placeholder="Kentucky Straight Bourbon Whiskey" autocomplete="off" />
+            </label>
+            <div class="field-row">
+              <label class="field">
+                <span>Alcohol content</span>
+                <input name="alcoholContent" type="text" placeholder="45% Alc./Vol." autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Net contents</span>
+                <input name="netContents" type="text" placeholder="750 mL" autocomplete="off" />
+              </label>
+            </div>
+            <label class="field">
+              <span>Bottler / producer <em>(optional)</em></span>
+              <input name="bottlerNameAddress" type="text" placeholder="Bottled by Old Tom Distillery, Bardstown, KY" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Country of origin <em>(optional, imports)</em></span>
+              <input name="countryOfOrigin" type="text" placeholder="Product of Scotland" autocomplete="off" />
+            </label>
+          </form>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="verifyBtn" class="primary-btn" disabled>Verify label</button>
+        <span class="actions-note">The Government Warning is always checked.</span>
+      </div>
+
+      <div id="singleResult" class="result-area" aria-live="polite"></div>
+    </section>
+
+    <!-- ============ BATCH MODE ============ -->
+    <section id="batchPanel" class="panel" role="tabpanel" aria-label="Check many labels" hidden>
+      <div class="card">
+        <h2><span class="step">1</span> Add the label photos</h2>
+        <p class="help">Select up to a few hundred images at once.</p>
+        <label class="dropzone dropzone-batch" for="batchFiles" tabindex="0">
+          <input id="batchFiles" type="file" accept="image/*" multiple hidden />
+          <div class="dropzone-prompt">
+            <span class="dropzone-icon" aria-hidden="true">🗂️</span>
+            <span class="dropzone-text">Click to choose photos</span>
+            <span class="dropzone-sub" id="batchCount">or drag them here</span>
+          </div>
+        </label>
+
+        <h2 class="mt"><span class="step">2</span> Add expected values <em>(optional)</em></h2>
+        <p class="help">
+          Upload a <strong>CSV</strong> with a <code>filename</code> column plus any of
+          <code>brand_name</code>, <code>class_type</code>, <code>alcohol_content</code>,
+          <code>net_contents</code>, <code>bottler</code>, <code>country</code>.
+          Without it, every label is still checked for the Government Warning and its fields are read for review.
+        </p>
+        <label class="file-pill" for="manifestFile">
+          <input id="manifestFile" type="file" accept=".csv,text/csv" hidden />
+          <span id="manifestName">📄 Choose CSV (optional)</span>
+        </label>
+      </div>
+
+      <div class="actions">
+        <button id="batchBtn" class="primary-btn" disabled>Verify all labels</button>
+      </div>
+
+      <div id="batchResult" class="result-area" aria-live="polite"></div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Prototype for evaluation only — not an official TTB determination. Images are processed in memory and not stored.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

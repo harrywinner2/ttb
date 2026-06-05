@@ -1,0 +1,219 @@
+# TTB Label Verifier
+
+An AI-powered prototype that checks an alcohol beverage **label image** against the
+**application data** an agent has on file, and verifies the mandatory **Government
+Health Warning** — in about five seconds, with a deliberately simple interface.
+
+Built as a take-home prototype for the TTB (Alcohol and Tobacco Tax and Trade Bureau)
+Compliance Division.
+
+> **Live demo:** <https://ttb-label-verifier.happywave-a4140b3f.eastus2.azurecontainerapps.io>
+>
+> Try it with the ready-made images in [`samples/`](samples/) (drag one in, type a few
+> expected values, click **Verify**), or load all six at once in **Check many at once**
+> and upload [`samples/manifest.csv`](samples/manifest.csv) as the expected-values file.
+
+---
+
+## What it does
+
+Given a photo of a label plus what the application claims, it reports a clear
+**Pass / Needs attention / Please take a look** verdict and a per-field breakdown:
+
+| Check | How it's judged |
+|---|---|
+| **Brand name** | Fuzzy match — tolerant of case/punctuation so `STONE'S THROW` matches `Stone's Throw`, but a genuinely different brand fails. |
+| **Class / type** | Fuzzy + partial match (e.g. application says "Bourbon", label says "Kentucky Straight Bourbon Whiskey"). |
+| **Alcohol content (ABV)** | Parses the percentage and compares with a small tolerance; also sanity-checks that Proof = 2 × ABV. |
+| **Net contents** | Normalises units (mL / L / cl / fl oz) before comparing. |
+| **Bottler / producer, Country of origin** | Optional fuzzy checks. |
+| **Government Warning** | **Strict.** Must be present, **word-for-word** the statutory text, with the heading **`GOVERNMENT WARNING`** in **all capital letters**. (See note on *bold* below.) |
+
+The Government Warning is the most-bent rule in real review (an agent's example: a label
+using "Government Warning" in title case is a rejection), so it gets its own dedicated,
+unforgiving check while the routine fields stay tolerant of trivial formatting noise.
+
+The exact text enforced (27 CFR Part 16):
+
+> **GOVERNMENT WARNING:** (1) According to the Surgeon General, women should not drink
+> alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption
+> of alcoholic beverages impairs your ability to drive a car or operate machinery, and may
+> cause health problems.
+
+**Single** and **batch** modes are both supported — batch handles the "an importer dumped
+300 applications on us" case, processes them concurrently, lets you filter to just the
+failures, and exports the results to CSV.
+
+---
+
+## Why these technology choices
+
+The discovery notes shaped every major decision:
+
+- **Azure + .NET + Azure OpenAI.** The team already runs on Azure (post-2019 migration) and
+  the COLA system is .NET. Building the prototype on the **same stack reuses existing
+  resources and minimises future migration friction** — if this informs a real procurement,
+  it already speaks the environment's language. The vision model is **Azure OpenAI
+  `gpt-4o`**, which lives *inside* the Azure boundary rather than a third-party endpoint.
+
+- **A fallback engine, because of the firewall.** IT warned that the network blocks outbound
+  traffic to many ML endpoints — that's what sank the previous scanning vendor. So the label
+  reader is **pluggable**: the primary engine is Azure OpenAI vision, and if it's
+  unreachable (or unconfigured), the app **automatically falls back to fully-offline OCR
+  (Tesseract)** bundled into the container. The same app keeps working behind the firewall;
+  you can also force the offline engine to demo it.
+
+- **Speed over cleverness.** The prior vendor lost the room at 30–40 seconds per label. The
+  vision call is capped with a timeout and the batch path runs concurrently, targeting the
+  "results in ~5 seconds" bar.
+
+- **A UI a 73-year-old can use.** Half the team is over 50 with mixed tech comfort, so the
+  interface is large-type, high-contrast, two obvious steps, plain-language verdicts, big
+  green/red results, and no hunting for buttons. Keyboard- and screen-reader-friendly.
+
+---
+
+## Architecture
+
+```
+Browser (static HTML/CSS/JS in wwwroot)
+   │  multipart upload: image(s) + expected fields (+ optional CSV manifest)
+   ▼
+ASP.NET Core 8 minimal API  (src/LabelVerifier)
+   │
+   ├── FallbackLabelReader ──► AzureOpenAiLabelReader  (primary: gpt-4o vision → JSON)
+   │                       └─► TesseractLabelReader    (offline OCR fallback)
+   │
+   └── LabelVerificationService
+         ├── TextMatching        (normalise + Levenshtein fuzzy match)
+         └── GovernmentWarning   (strict caps + word-for-word check)
+```
+
+Key design points:
+
+- **`ILabelReader`** makes the reading engine swappable; `FallbackLabelReader` owns the
+  primary→fallback decision and reports which engine actually ran.
+- **Warning caps are derived from the model's *literal transcription*, not its self-report.**
+  `gpt-4o` faithfully copies the heading's casing into the text but is unreliable when asked
+  "is this all caps?" — so the code judges capitalisation from the transcribed characters.
+- **Bold is advisory.** Typographic weight can't be read by OCR and the vision model judges
+  it unreliably, so a missing/uncertain bold never hard-fails an otherwise-correct label; it
+  surfaces as a note for a human glance. (See *Trade-offs*.)
+
+---
+
+## Running it locally
+
+### Option A — Docker (matches production; enables the offline fallback)
+
+```bash
+cd src/LabelVerifier
+docker build -t labelverifier .
+
+# With the cloud engine:
+docker run -p 8080:8080 \
+  -e AzureOpenAI__Endpoint="https://<your-resource>.openai.azure.com" \
+  -e AzureOpenAI__Deployment="gpt-4o" \
+  -e AzureOpenAI__ApiKey="<key>" \
+  labelverifier
+
+# Or offline-only (no credentials needed — uses bundled Tesseract):
+docker run -p 8080:8080 labelverifier
+```
+
+Open <http://localhost:8080>.
+
+### Option B — .NET SDK directly
+
+Requires the .NET 8 SDK. For the offline fallback, also install the `tesseract-ocr` binary
+(`apt-get install tesseract-ocr` / `brew install tesseract`).
+
+```bash
+cd src/LabelVerifier
+export AzureOpenAI__Endpoint="https://<your-resource>.openai.azure.com"
+export AzureOpenAI__Deployment="gpt-4o"
+export AzureOpenAI__ApiKey="<key>"
+dotnet run
+```
+
+Credentials come from environment variables / App settings only — **nothing secret is
+committed**.
+
+### Tests
+
+```bash
+cd tests/LabelVerifier.Tests
+dotnet test
+```
+
+The suite covers the tricky correctness: fuzzy matching, ABV/proof parsing, and every branch
+of the Government Warning check (missing, title-case heading, creative wording, the
+model-says-caps-but-text-says-otherwise case, and advisory bold).
+
+---
+
+## Generating more test labels
+
+[`samples/`](samples/) ships six labels (compliant bourbon/gin/wine plus deliberate
+violations: title-case warning, missing warning, ABV mismatch) and a `manifest.csv` of their
+expected values. Regenerate or extend them:
+
+```bash
+pip install Pillow
+python3 samples/generate_labels.py
+```
+
+---
+
+## Deployment
+
+The container image is hosted in **Azure Container Registry** and runs on **Azure Container
+Apps** (serverless containers, public HTTPS, scales on demand). Azure OpenAI credentials are
+injected as Container App secrets/environment variables — never baked into the image. See
+[`deploy/deploy.sh`](deploy/deploy.sh) for the exact, repeatable provisioning steps.
+
+---
+
+## Assumptions & scope
+
+- **Prototype, not a system of record.** Per IT's guidance, it does **not** integrate with
+  COLA and stores nothing: images are processed in memory and discarded. No PII retention, no
+  database.
+- The "application data" is entered by the agent (single mode) or supplied as a CSV manifest
+  (batch mode), standing in for what COLA would provide.
+- Warning enforcement targets the standard statement under 27 CFR Part 16; the many
+  beverage-specific type-size/placement rules are out of scope for a prototype.
+
+## Trade-offs & limitations
+
+- **Bold detection is best-effort.** Reliably judging type weight needs layout/glyph
+  geometry analysis; the vision model's self-report is too noisy to gate on, so bold is
+  advisory. **Caps and wording — the violations agents actually catch — are enforced
+  strictly** and proved out by tests. A production version would add a dedicated typographic
+  check (font weight, type size, contrast).
+- **The cloud engine isn't deterministic.** Field extraction can vary slightly run to run;
+  the verdict logic is built to be tolerant where it should be and strict only where the rules
+  are bright-line.
+- **Quotas.** The demo runs on Azure Container Apps because the fresh subscription had zero
+  App Service dedicated-VM quota; on an established TTB subscription, App Service (or AKS) is
+  equally viable and the container is unchanged.
+- **Firewall reality.** In TTB's real network the cloud call would be blocked; that's the
+  whole point of the offline fallback. Production would either run fully offline (OCR + a
+  local model) or call Azure OpenAI from *within* the FedRAMP boundary.
+
+---
+
+## Project layout
+
+```
+src/LabelVerifier/        ASP.NET Core app
+  Models/                 LabelApplication, LabelReading, VerificationResult
+  Engines/                ILabelReader, Azure OpenAI + Tesseract, fallback orchestrator
+  Services/               TextMatching, GovernmentWarning, LabelVerificationService
+  Endpoints/              /api/verify, /api/verify/batch, /api/health
+  wwwroot/                the single-page UI
+  Dockerfile
+tests/LabelVerifier.Tests/ xUnit tests for the verification logic
+samples/                  generated test labels + manifest.csv + generator script
+deploy/                   provisioning script
+```

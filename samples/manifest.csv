@@ -1,0 +1,7 @@
+filename,brand_name,class_type,alcohol_content,net_contents,bottler,country
+01_old_tom_bourbon_ok.png,Old Tom Distillery,Kentucky Straight Bourbon Whiskey,45% Alc./Vol.,750 mL,"Old Tom Distillery, Bardstown, KY",
+02_stones_throw_gin_casediff.png,Stone's Throw,London Dry Gin,47%,750 mL,"Stone's Throw Spirits, Portland, OR",
+03_titlecase_warning_fail.png,Iron Ridge,Straight Rye Whiskey,50%,750 mL,"Iron Ridge Distilling Co., Louisville, KY",
+04_missing_warning_fail.png,Blue Heron,Silver Tequila,40%,750 mL,"Blue Heron Imports, San Diego, CA",Product of Mexico
+05_abv_mismatch_fail.png,Cedar Creek,Single Malt Whisky,43% Alc./Vol.,700 mL,Cedar Creek Ltd.,Product of Scotland
+06_red_oak_wine_ok.png,Red Oak Cellars,Cabernet Sauvignon,13.5%,750 mL,"Red Oak Cellars, Napa, CA",

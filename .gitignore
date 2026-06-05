@@ -1,0 +1,30 @@
+# Build output
+bin/
+obj/
+out/
+publish/
+
+# .NET / Rider / VS
+*.user
+*.suo
+.vs/
+.idea/
+*.swp
+
+# Secrets — never commit credentials
+.env
+.env.local
+*.secrets.json
+appsettings.*.Local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Proprietary take-home specification — not for the public repo
+specs.pdf
+
+# Python (sample generator)
+__pycache__/
+*.pyc
+.venv/
