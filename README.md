@@ -165,6 +165,50 @@ python3 samples/generate_labels.py
 
 ---
 
+## Real-world testing
+
+Beyond the synthetic samples, I tested the **live deployment with actual product
+photographs** (sourced from Wikimedia Commons) by driving the real site through a headless
+Chromium with Puppeteer — uploading each photo and reading the on-screen verdict, once with
+the cloud engine and once with the **firewall toggle** (offline OCR). Harness:
+[`realtest/drive.js`](realtest/drive.js).
+
+Photos used (all genuinely hard — angles, reflections, script fonts, dim light, small text):
+Evan Williams (two bottles, angled), Gentleman Jack (small label across a counter), Old Rip
+Van Winkle (handheld, dim, serif). Fields each engine read **correctly**:
+
+| Photo | Cloud `gpt-4o` | Offline OCR (firewall) |
+|---|---|---|
+| Evan Williams — angled, script | brand ✓, class ✓ | nothing legible |
+| Gentleman Jack — small, distant | brand ✓, class ✓, net contents ✓ (missed tiny ABV) | nothing legible |
+| Old Rip Van Winkle — dim, serif | class ✓, ABV 45.2% ✓, net ✓, bottler ✓ | brand only |
+
+What the real test surfaced:
+
+1. **Cloud vision dramatically outperforms OCR on real photos.** `gpt-4o` read curved,
+   reflective, script labels accurately; Tesseract recovered almost nothing from the same
+   images. This validates the cloud-primary design — and is the honest limit of the offline
+   fallback: a free, always-available safety net, not an equal. Behind a real firewall you'd
+   pair OCR with a *local* vision model.
+2. **The Government Warning was correctly flagged missing on all three** — front-label photos
+   don't show the back-of-bottle warning. No false positives; the tool behaves like an agent
+   who'd ask for the back label.
+3. **`gpt-4o` fails honestly.** On Gentleman Jack's tiny, distant text it reported
+   "no alcohol content could be read" rather than inventing a number — the right behavior for
+   compliance.
+4. **A real edge case drove a fix.** `gpt-4o` read Old Rip Van Winkle's brand as
+   *"Van Winkle Special Reserve"* while the application said *"Van Winkle"*. The strict brand
+   check originally hard-failed this human-obvious match. It now flags a case where the
+   application brand is a whole-word **subset** of the fuller on-label name for **Review**
+   (confirm same product) — not a hard fail, and deliberately **not** an auto-pass
+   (*"Crown"* vs *"Crown Royal"* are different products). Covered by a unit test and verified
+   live.
+5. **Latency** on full-resolution phone photos was **5.5–9.7s** for `gpt-4o` (above the 5s
+   target on large images) vs **0.2–1.7s** for OCR. Downscaling images client-side before
+   upload would bring the cloud path back under target — a worthwhile next step.
+
+---
+
 ## Deployment
 
 The container image is hosted in **Azure Container Registry** and runs on **Azure Container

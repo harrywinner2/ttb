@@ -49,6 +49,22 @@ public static partial class TextMatching
         return nn.Length > 0 && nh.Contains(nn);
     }
 
+    /// <summary>
+    /// True when every meaningful word of <paramref name="subset"/> appears in
+    /// <paramref name="full"/> and <paramref name="full"/> has strictly more words —
+    /// e.g. "Van Winkle" within "Van Winkle Special Reserve". Used to flag (for human
+    /// review, not auto-pass) a brand the application named more briefly than the label.
+    /// </summary>
+    public static bool IsProperTokenSubset(string? subset, string? full)
+    {
+        var e = Normalize(subset).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var f = Normalize(full).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (e.Length == 0 || f.Length <= e.Length) return false;
+        if (!e.Any(t => t.Length >= 3)) return false;          // avoid trivial one-letter overlaps
+        var fset = new HashSet<string>(f);
+        return e.All(fset.Contains);
+    }
+
     /// <summary>Pulls the first alcohol-by-volume percentage out of a free-form string.</summary>
     public static double? ParseAbv(string? s)
     {

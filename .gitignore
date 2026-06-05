@@ -24,6 +24,11 @@ Thumbs.db
 # Proprietary take-home specification — not for the public repo
 specs.pdf
 
+# Third-party product photos downloaded for real-world testing (not redistributed)
+realtest/*.jpg
+realtest/*.jpeg
+realtest/*.png
+
 # Python (sample generator)
 __pycache__/
 *.pyc

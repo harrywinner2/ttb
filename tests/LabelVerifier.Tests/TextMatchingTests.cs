@@ -36,6 +36,17 @@ public class TextMatchingTests
         Assert.Equal(90, TextMatching.ParseProof("45% Alc./Vol. (90 Proof)"));
     }
 
+    [Theory]
+    [InlineData("Van Winkle", "Van Winkle Special Reserve", true)]   // real case found in testing
+    [InlineData("Crown", "Crown Royal", true)]                        // flag for review, not auto-pass
+    [InlineData("Old Tom Distillery", "Old Tom Distillery", false)]   // identical → not a proper subset
+    [InlineData("Buffalo Trace", "Eagle Rare", false)]                // unrelated
+    [InlineData("a", "a b c", false)]                                 // trivial one-letter token ignored
+    public void IsProperTokenSubset_flags_brief_application_brand(string subset, string full, bool expected)
+    {
+        Assert.Equal(expected, TextMatching.IsProperTokenSubset(subset, full));
+    }
+
     [Fact]
     public void NormalizedContains_finds_value_in_raw_text()
     {

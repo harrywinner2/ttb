@@ -117,6 +117,18 @@ public sealed partial class LabelVerificationService
             return check;
         }
 
+        // For strict fields (brand): if the application value is a whole-word subset of the
+        // fuller name printed on the label (e.g. application "Van Winkle" vs label "Van Winkle
+        // Special Reserve"), don't hard-fail an obvious match — but don't silently pass either
+        // ("Crown" vs "Crown Royal" are different products). Flag for a human to confirm.
+        // (Found from real-world testing — see README.)
+        if (!allowPartial && TextMatching.IsProperTokenSubset(expected, found))
+        {
+            check.Status = CheckStatus.Review;
+            check.Detail = "The application value is part of the fuller name on the label — please confirm it is the same product.";
+            return check;
+        }
+
         var sim = TextMatching.Similarity(expected, found);
         if (sim >= PassThreshold)
         {
