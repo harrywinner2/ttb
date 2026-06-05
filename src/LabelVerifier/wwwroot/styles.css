@@ -289,3 +289,39 @@ body {
 /* ---- Footer ---- */
 .site-footer { border-top: 1px solid var(--line); background: #fff; margin-top: 20px; }
 .site-footer p { color: var(--muted); font-size: 13.5px; padding: 18px 0; margin: 0; text-align: center; }
+
+/* ---- Mobile (phones) ---- */
+@media (max-width: 640px) {
+  body { font-size: 17px; }
+  .wrap { padding: 0 14px; }
+
+  /* Header: stack so the engine badge flows UNDER the title/subtitle instead of
+     competing for horizontal space (which previously overflowed the viewport). */
+  .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; padding: 16px 14px; }
+  .site-header h1 { font-size: 22px; }
+  .brand { gap: 12px; }
+  .brand-mark { width: 42px; height: 42px; }
+  .engine-badge { white-space: normal; }
+
+  /* Mode switch + firewall toggle span the full width */
+  .mode-switch { margin: 18px 0; max-width: none; }
+  .mode-btn { font-size: 15px; padding: 11px 8px; }
+  .firewall-bar { margin: -2px 0 20px; }
+  .switch { max-width: none; width: 100%; }
+
+  /* Step cards: single column (as in batch mode), tighter padding, and the
+     two-up inputs (ABV / net contents) stack so they fit a small screen. */
+  .grid { gap: 16px; }
+  .card { padding: 18px 16px; }
+  .card h2.mt { margin-top: 20px; }
+  .field-row { flex-direction: column; gap: 14px; }
+
+  /* Primary action spans the width and is easy to tap */
+  .actions { gap: 12px; margin-top: 20px; }
+  .primary-btn { width: 100%; font-size: 18px; padding: 15px 20px; }
+  .actions-note { font-size: 14px; }
+
+  /* Results: keep the engine/time meta from crowding the verdict */
+  .verdict { flex-wrap: wrap; gap: 12px; padding: 18px; }
+  .verdict .meta { margin-left: 0; width: 100%; text-align: left; }
+}
