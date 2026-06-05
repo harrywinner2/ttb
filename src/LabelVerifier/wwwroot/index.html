@@ -55,9 +55,9 @@
         <!-- Step 1: image -->
         <div class="card">
           <h2><span class="step">1</span> Add the label photos</h2>
-          <p class="help">Add up to <strong>4</strong> photos of the same product — front, back,
-            neck, and gift box if there is one. The <strong>back</strong> label carries the
-            Government Warning. Clear, straight-on shots work best. JPG, PNG, or WEBP.</p>
+          <p class="help">Add up to <strong>4</strong> photos of the same product, covering
+            <strong>every side that has text</strong> — at least one will carry the Government
+            Warning. Any angle is fine; clear, straight-on shots read best. JPG, PNG, or WEBP.</p>
 
           <label id="dropZone" class="dropzone dropzone-batch" for="singleFile" tabindex="0">
             <input id="singleFile" type="file" accept="image/*" multiple hidden />
@@ -135,7 +135,7 @@
           <code>brand_name</code>, <code>class_type</code>, <code>alcohol_content</code>,
           <code>net_contents</code>, <code>bottler</code>, <code>country</code> — or a
           <strong>JSON</strong> manifest to group <strong>several images per product</strong>
-          (front, back, neck, gift box; up to 4) using an <code>"images": [ … ]</code> list.
+          (any sides/angles, up to 4) using an <code>"images": [ … ]</code> list.
           Without a manifest, each image is treated as its own product. Processing runs in parallel.
         </p>
         <label class="file-pill" for="manifestFile">

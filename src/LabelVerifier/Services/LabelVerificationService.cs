@@ -36,10 +36,11 @@ public sealed partial class LabelVerificationService
         => VerifyProductAsync(new[] { new ImageBlob(imageBytes, contentType) }, app, forceFallback, ct);
 
     /// <summary>
-    /// Verifies one product that may be represented by several images (front, back, neck, gift
-    /// box). Each image is read, the readings are merged into one — the front usually supplies
-    /// the brand/ABV, the back supplies the Government Warning — then the merged reading is
-    /// verified once. A single-image submission is just the trivial case.
+    /// Verifies one product that may be represented by several images (up to four views, any
+    /// sides/angles). Each image is read and the readings are merged into one — every field is
+    /// taken from whichever image shows it, so one side can supply the brand/ABV while another
+    /// supplies the Government Warning — then the merged reading is verified once. A single-image
+    /// submission is just the trivial case.
     /// </summary>
     public async Task<VerificationResult> VerifyProductAsync(
         IReadOnlyList<ImageBlob> images, LabelApplication app, bool forceFallback = false, CancellationToken ct = default)
@@ -95,8 +96,8 @@ public sealed partial class LabelVerificationService
 
     /// <summary>
     /// Combines several images of one product into a single reading: each scalar field takes the
-    /// first image that supplied it (front usually wins for brand/ABV), and the warning fields
-    /// are taken from whichever image produced the strongest warning check (usually the back).
+    /// first image that supplied it, and the warning fields are taken from whichever image
+    /// produced the strongest warning check — regardless of which side each image shows.
     /// </summary>
     private static LabelReading Merge(IReadOnlyList<LabelReading> readings)
     {

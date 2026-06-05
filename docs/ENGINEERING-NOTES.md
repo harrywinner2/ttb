@@ -98,9 +98,9 @@ is the degraded fallback that the upgrades target.
   `Batch:MaxParallelism`), and the client **polls** for incremental results. This decouples
   throughput from any single request's lifetime — directly addressing the earlier failure where
   a large synchronous batch exceeded the client timeout on a cold start.
-- **Multiple images per product** (front, back, neck, gift box) are read and **merged** into a
-  single verification, so the brand can come from the front while the Government Warning comes
-  from the back.
+- **Multiple images per product** (up to four, any sides/angles) are read and **merged** into a
+  single verification, so the brand can come from one image while the Government Warning comes
+  from another.
 
 ### Recommended for production scale
 - **Durable queue + autoscaling workers.** Replace the in-memory job store with Azure Storage

@@ -52,7 +52,7 @@ load (Sarah's "drowning" problem); the agent makes the call.
 300 applications on us" case: it accepts an optional **CSV or JSON** manifest of expected
 values, runs products on an **asynchronous, parallel** job (the client polls for incremental
 results, so no single request is held open), supports **multiple images per product**
-(front/back/neck/box), lets you filter to the failures, and exports to CSV.
+(up to 4, any sides/angles), lets you filter to the failures, and exports to CSV.
 
 ---
 
@@ -112,8 +112,8 @@ Key design points:
 
 - **`ILabelReader`** makes the reading engine swappable; `FallbackLabelReader` owns the
   primary→fallback decision and reports which engine actually ran.
-- **Multiple images per product are merged** into a single reading before verification, so the
-  front label can supply the brand while the back supplies the Government Warning.
+- **Multiple images per product are merged** into a single reading before verification, so one
+  image can supply the brand while another supplies the Government Warning.
 - **Batch is asynchronous and parallel.** A job is processed by bounded parallel workers and the
   client polls for incremental results, so no single request is held open (configurable degree;
   default 8).
@@ -246,10 +246,11 @@ the *back* of the container, so a front-only image can never satisfy it — ever
 tested was correctly flagged as "warning not present," which is accurate but not actionable.
 
 The recommendation is therefore to **require submitters (importers, producers) to provide
-multiple images per product** — typically up to **four**: front label, back label, neck/strip
-label, and, where applicable, the **gift carton or wine box**. Each required element (brand,
-class/type, ABV, net contents, bottler, country of origin, Government Warning) can then be
-located on whichever image carries it.
+multiple images per product** — up to **four** views that together capture **every labeled
+surface**, whichever sides those happen to be (a tall bottle's front and back, or all four
+faces of a boxy bottle or carton). The point is full coverage of the required text, not a
+fixed set of shots. Each required element (brand, class/type, ABV, net contents, bottler,
+country of origin, Government Warning) can then be located on whichever image carries it.
 
 **Representing multiple images per product — CSV vs JSON.** A flat CSV maps one row to one
 file, which does not express grouping cleanly. A **JSON manifest** is the better fit, because
@@ -259,7 +260,7 @@ each product owns an explicit list of images:
 [
   {
     "product": "Old Tom Bourbon 750",
-    "images": ["oldtom_front.jpg", "oldtom_back.jpg", "oldtom_neck.jpg"],
+    "images": ["oldtom_front.jpg", "oldtom_back.jpg"],
     "brand_name": "Old Tom Distillery",
     "class_type": "Kentucky Straight Bourbon Whiskey",
     "alcohol_content": "45% Alc./Vol.",

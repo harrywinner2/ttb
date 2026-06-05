@@ -13,7 +13,7 @@ public static class VerificationEndpoints
     private static readonly string[] AllowedTypes =
         { "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp" };
 
-    private const int MaxImagesPerProduct = 4; // front, back, neck, gift box
+    private const int MaxImagesPerProduct = 4; // up to four views of one product (any sides/angles)
 
     public static void MapVerificationEndpoints(this WebApplication app)
     {
