@@ -10,24 +10,42 @@ const VERDICT = {
   Review: { cls: "review", icon: "⚠️", title: "Please take a look", msg: "Mostly fine, but something needs a human glance." },
 };
 
-/* ---------------- Engine badge ---------------- */
+/* ---------------- Engine state ---------------- */
+let HEALTH = null;
+
+function firewallOn() { return $("#firewallToggle")?.checked === true; }
+
+/** Adds engine=offline to a FormData when the firewall switch is on. */
+function applyEngine(fd) { if (firewallOn()) fd.set("engine", "offline"); return fd; }
+
+function updateBadge() {
+  const badge = $("#engineBadge");
+  if (!badge) return;
+  if (firewallOn()) {
+    badge.textContent = "🔒 Firewall mode · " + (HEALTH?.fallbackEngine || "offline OCR");
+    badge.classList.add("offline");
+  } else if (HEALTH?.primaryAvailable) {
+    badge.textContent = "● Reading with " + HEALTH.primaryEngine;
+    badge.classList.remove("offline");
+  } else if (HEALTH?.fallbackAvailable) {
+    badge.textContent = "● Offline mode · " + HEALTH.fallbackEngine;
+    badge.classList.add("offline");
+  } else {
+    badge.textContent = HEALTH ? "No reader available" : "";
+  }
+}
+
 async function loadHealth() {
   try {
-    const r = await fetch("/api/health");
-    const h = await r.json();
-    const badge = $("#engineBadge");
-    if (h.primaryAvailable) {
-      badge.textContent = "● Reading with " + h.primaryEngine;
-      badge.classList.remove("offline");
-    } else if (h.fallbackAvailable) {
-      badge.textContent = "● Offline mode · " + h.fallbackEngine;
-      badge.classList.add("offline");
-    } else {
-      badge.textContent = "No reader available";
-    }
+    HEALTH = await (await fetch("/api/health")).json();
   } catch {
-    $("#engineBadge").textContent = "";
+    HEALTH = null;
   }
+  updateBadge();
+}
+
+function setupFirewallToggle() {
+  $("#firewallToggle")?.addEventListener("change", updateBadge);
 }
 
 /* ---------------- Tabs ---------------- */
@@ -95,6 +113,7 @@ function setupSingle() {
 
     const fd = new FormData($("#appForm"));
     fd.append("image", file);
+    applyEngine(fd);
     try {
       const r = await fetch("/api/verify", { method: "POST", body: fd });
       const data = await r.json();
@@ -140,6 +159,7 @@ function setupBatch() {
     const fd = new FormData();
     files.forEach(f => fd.append("images", f));
     if (manifestInput.files[0]) fd.append("manifest", manifestInput.files[0]);
+    applyEngine(fd);
 
     try {
       const r = await fetch("/api/verify/batch", { method: "POST", body: fd });
@@ -323,6 +343,7 @@ function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;
 document.addEventListener("DOMContentLoaded", () => {
   loadHealth();
   setupTabs();
+  setupFirewallToggle();
   setupSingle();
   setupBatch();
 });

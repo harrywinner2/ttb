@@ -37,6 +37,18 @@
       </button>
     </div>
 
+    <!-- Firewall simulation: forces the fully-offline OCR engine (no cloud AI calls) -->
+    <div class="firewall-bar">
+      <label class="switch" for="firewallToggle">
+        <input type="checkbox" id="firewallToggle" />
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+        <span class="switch-label">
+          <strong>🔒 Simulate agency firewall</strong>
+          <span class="switch-sub">Block the cloud AI and verify with the offline OCR engine only</span>
+        </span>
+      </label>
+    </div>
+
     <!-- ============ SINGLE MODE ============ -->
     <section id="singlePanel" class="panel" role="tabpanel" aria-label="Check one label">
       <div class="grid">
