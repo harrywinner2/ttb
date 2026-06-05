@@ -3,11 +3,26 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-const ICONS = { Pass: "✅", Fail: "❌", Review: "⚠️", NotChecked: "➖" };
+/* Inline Lucide line icons (sober, MIT-licensed) — no emoji. */
+const ICON_PATHS = {
+  "circle-check": '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  "circle-x": '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
+  "triangle-alert": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  "minus": '<path d="M5 12h14"/>',
+  "chevron-down": '<path d="m6 9 6 6 6-6"/>',
+  "chevron-up": '<path d="m18 15-6-6-6 6"/>',
+  "download": '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
+};
+function svgIcon(name, size = 18) {
+  return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ""}</svg>`;
+}
+const STATUS_ICON = { Pass: "circle-check", Fail: "circle-x", Review: "triangle-alert", NotChecked: "minus" };
+const statusIcon = (status, size = 22) => svgIcon(STATUS_ICON[status] || "minus", size);
+
 const VERDICT = {
-  Pass:   { cls: "pass",   icon: "✅", title: "Looks good",        msg: "Everything checked matches and the warning is correct." },
-  Fail:   { cls: "fail",   icon: "❌", title: "Needs attention",   msg: "One or more checks did not pass. See the details below." },
-  Review: { cls: "review", icon: "⚠️", title: "Please take a look", msg: "Mostly fine, but something needs a human glance." },
+  Pass:   { cls: "pass",   icon: "circle-check",   title: "Looks good",        msg: "Everything checked matches and the warning is correct." },
+  Fail:   { cls: "fail",   icon: "circle-x",       title: "Needs attention",   msg: "One or more checks did not pass. See the details below." },
+  Review: { cls: "review", icon: "triangle-alert", title: "Please take a look", msg: "Mostly fine, but something needs a human glance." },
 };
 
 /* ---------------- Engine state ---------------- */
@@ -21,14 +36,15 @@ function applyEngine(fd) { if (firewallOn()) fd.set("engine", "offline"); return
 function updateBadge() {
   const badge = $("#engineBadge");
   if (!badge) return;
+  const dot = '<span class="dot"></span>';
   if (firewallOn()) {
-    badge.textContent = "🔒 Firewall mode · " + (HEALTH?.fallbackEngine || "offline OCR");
+    badge.innerHTML = dot + "Firewall mode · " + esc(HEALTH?.fallbackEngine || "offline OCR");
     badge.classList.add("offline");
   } else if (HEALTH?.primaryAvailable) {
-    badge.textContent = "● Reading with " + HEALTH.primaryEngine;
+    badge.innerHTML = dot + "Reading with " + esc(HEALTH.primaryEngine);
     badge.classList.remove("offline");
   } else if (HEALTH?.fallbackAvailable) {
-    badge.textContent = "● Offline mode · " + HEALTH.fallbackEngine;
+    badge.innerHTML = dot + "Offline mode · " + esc(HEALTH.fallbackEngine);
     badge.classList.add("offline");
   } else {
     badge.textContent = HEALTH ? "No reader available" : "";
@@ -158,7 +174,7 @@ function setupBatch() {
   input.addEventListener("change", () => setFiles(input.files));
   wireDrop(dz, list => { setFiles(list); });
   manifestInput.addEventListener("change", () => {
-    manifestName.textContent = manifestInput.files[0] ? "📄 " + manifestInput.files[0].name : "📄 Choose CSV (optional)";
+    manifestName.textContent = manifestInput.files[0] ? manifestInput.files[0].name : "Choose CSV or JSON (optional)";
   });
 
   btn.addEventListener("click", async () => {
@@ -205,7 +221,7 @@ async function pollJob(jobId, out, onDone) {
 function spinner(text) {
   return `<div class="spinner-wrap"><div class="spinner" role="status" aria-label="Working"></div><span>${esc(text)}</span></div>`;
 }
-function errorBox(text) { return `<div class="error-box">⚠️ ${esc(text)}</div>`; }
+function errorBox(text) { return `<div class="error-box">${svgIcon("triangle-alert", 18)} ${esc(text)}</div>`; }
 
 function renderResult(data, showVerdict) {
   const frag = document.createDocumentFragment();
@@ -220,7 +236,7 @@ function renderResult(data, showVerdict) {
     const meta = `${esc(data.engineUsed || "")}${data.processingMs ? " · " + (data.processingMs / 1000).toFixed(1) + "s" : ""}`;
     frag.appendChild(html(`
       <div class="verdict ${v.cls}">
-        <span class="verdict-icon">${v.icon}</span>
+        <span class="verdict-icon">${svgIcon(v.icon, 30)}</span>
         <div><h3>${v.title}</h3><p>${v.msg}</p></div>
         <div class="meta">${meta}</div>
       </div>`));
@@ -244,7 +260,7 @@ function renderCheck(f) {
        </div>` : "";
   return html(`
     <div class="check ${cls}">
-      <span class="check-ico">${ICONS[f.status] || "➖"}</span>
+      <span class="check-ico">${statusIcon(f.status)}</span>
       <div>
         <div class="check-name">${esc(f.field)}</div>
         ${f.detail ? `<div class="check-detail">${esc(f.detail)}</div>` : ""}
@@ -262,7 +278,7 @@ function renderWarning(w) {
     ? `<div class="warning-text">${esc(w.foundText)}</div>` : "";
   return html(`
     <div class="check warning-check ${cls}">
-      <span class="check-ico">${ICONS[w.status] || "❌"}</span>
+      <span class="check-ico">${statusIcon(w.status)}</span>
       <div>
         <div class="check-name">Government Warning statement</div>
         ${w.detail ? `<div class="check-detail">${esc(w.detail)}</div>` : ""}
@@ -291,7 +307,7 @@ function renderBatch(data) {
       <button class="ghost-btn" data-filter="all">Show all</button>
       <button class="ghost-btn" data-filter="Fail">Only failed</button>
       <button class="ghost-btn" data-filter="Review">Only needs-a-look</button>
-      <button class="ghost-btn" id="exportCsv">⬇ Download results (CSV)</button>
+      <button class="ghost-btn" id="exportCsv">${svgIcon("download", 15)} Download results (CSV)</button>
     </div>`);
   frag.appendChild(toolbar);
 
@@ -302,9 +318,9 @@ function renderBatch(data) {
     const v = VERDICT[res.overall] || VERDICT.Review;
     const row = html(`
       <div class="batch-row" data-status="${res.overall}" data-idx="${idx}" tabindex="0" role="button" aria-expanded="false">
-        <span class="pill ${v.cls}">${v.icon} ${res.overall}</span>
+        <span class="pill ${v.cls}">${svgIcon(v.icon, 14)} ${res.overall}</span>
         <span class="fname" title="${esc(res.fileName || "")}">${esc(res.fileName || "(unnamed)")}</span>
-        <span class="toggle">details ▾</span>
+        <span class="toggle">details ${svgIcon("chevron-down", 14)}</span>
       </div>`);
     const detail = document.createElement("div");
     detail.className = "batch-detail";
@@ -332,7 +348,7 @@ function toggle(row, detail) {
   const open = detail.hidden;
   detail.hidden = !open;
   row.setAttribute("aria-expanded", open);
-  $(".toggle", row).textContent = open ? "details ▴" : "details ▾";
+  $(".toggle", row).innerHTML = "details " + svgIcon(open ? "chevron-up" : "chevron-down", 14);
 }
 function filterRows(table, filter) {
   $$(".batch-row", table).forEach(row => {

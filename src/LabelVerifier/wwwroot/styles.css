@@ -61,6 +61,20 @@ body {
   padding: 8px 12px; border-radius: 999px; white-space: nowrap;
 }
 .engine-badge.offline { background: rgba(255,210,120,.22); color: #ffe9bf; }
+.engine-badge .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: currentColor; margin-right: 7px; vertical-align: 0.04em; }
+
+/* ---- Inline icons (Lucide line icons; inherit colour via currentColor) ---- */
+.ic { flex: none; vertical-align: -0.15em; }
+.check.s-pass .check-ico { color: var(--pass); }
+.check.s-fail .check-ico { color: var(--fail); }
+.check.s-review .check-ico { color: var(--review); }
+.check.s-notchecked .check-ico { color: var(--muted); }
+.toggle .ic { vertical-align: -0.1em; margin-left: 4px; }
+.ghost-btn .ic { vertical-align: -0.15em; margin-right: 5px; }
+.switch-label strong .ic { vertical-align: -0.18em; margin-right: 7px; }
+.file-pill .ic { vertical-align: -0.2em; margin-right: 7px; }
+.file-pill { display: inline-flex; align-items: center; }
+.dropzone-icon { color: var(--navy); }
 
 /* ---- Mode switch ---- */
 .mode-switch {

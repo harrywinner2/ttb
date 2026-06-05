@@ -197,9 +197,9 @@ Chromium with Puppeteer — uploading each photo and reading the on-screen verdi
 the cloud engine and once with the **firewall toggle** (offline OCR). Harness:
 [`realtest/drive.js`](realtest/drive.js).
 
-> 📊 **See the results without running anything:** [**docs/REAL-WORLD-FINDINGS.md**](docs/REAL-WORLD-FINDINGS.md)
-> shows each test photo next to what the cloud engine and the offline OCR read.
-> 🛠️ The deeper write-up — **replacing the OCR**, plus **security** and **scalability** — is in
+> **See the results without running anything:** [**docs/REAL-WORLD-FINDINGS.md**](docs/REAL-WORLD-FINDINGS.md)
+> shows each test photo next to what the cloud engine and the offline OCR read. The deeper
+> write-up — **replacing the OCR**, plus **security** and **scalability** — is in
 > [**docs/ENGINEERING-NOTES.md**](docs/ENGINEERING-NOTES.md).
 
 Photos used (all genuinely hard — angles, reflections, script fonts, dim light, small text):
