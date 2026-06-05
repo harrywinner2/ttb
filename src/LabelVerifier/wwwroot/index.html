@@ -54,25 +54,27 @@
       <div class="grid">
         <!-- Step 1: image -->
         <div class="card">
-          <h2><span class="step">1</span> Add the label photo</h2>
-          <p class="help">A clear, straight-on photo works best. JPG, PNG, or WEBP.</p>
+          <h2><span class="step">1</span> Add the label photos</h2>
+          <p class="help">Add up to <strong>4</strong> photos of the same product — front, back,
+            neck, and gift box if there is one. The <strong>back</strong> label carries the
+            Government Warning. Clear, straight-on shots work best. JPG, PNG, or WEBP.</p>
 
-          <label id="dropZone" class="dropzone" for="singleFile" tabindex="0">
-            <input id="singleFile" type="file" accept="image/*" hidden />
+          <label id="dropZone" class="dropzone dropzone-batch" for="singleFile" tabindex="0">
+            <input id="singleFile" type="file" accept="image/*" multiple hidden />
             <div id="dropPrompt" class="dropzone-prompt">
               <span class="dropzone-icon" aria-hidden="true">📷</span>
-              <span class="dropzone-text">Click to choose a photo</span>
-              <span class="dropzone-sub">or drag it here</span>
+              <span class="dropzone-text">Click to choose photos</span>
+              <span class="dropzone-sub">or drag them here · up to 4</span>
             </div>
-            <img id="preview" class="preview" alt="Label preview" hidden />
           </label>
-          <button id="clearImage" class="link-btn" hidden>Remove photo</button>
+          <div id="thumbs" class="thumbs" aria-live="polite"></div>
         </div>
 
         <!-- Step 2: application data -->
         <div class="card">
           <h2><span class="step">2</span> What does the application say?</h2>
-          <p class="help">Type what's on file. Leave blanks if you're not checking that field.</p>
+          <p class="help">These values come from the application on file (in production, pre-filled
+            from COLA). Leave any blank to simply read it off the label.</p>
 
           <form id="appForm" class="fields">
             <label class="field">

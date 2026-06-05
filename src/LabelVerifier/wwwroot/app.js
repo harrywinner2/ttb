@@ -77,42 +77,53 @@ function wireDrop(zone, onFiles) {
   });
 }
 
-/* ---------------- Single mode ---------------- */
+/* ---------------- Single mode (one product, up to 4 images) ---------------- */
+const MAX_IMAGES = 4;
+
 function setupSingle() {
   const input = $("#singleFile");
   const zone = $("#dropZone");
-  const preview = $("#preview");
-  const prompt = $("#dropPrompt");
-  const clearBtn = $("#clearImage");
+  const sub = $("#dropPrompt .dropzone-sub");
+  const thumbs = $("#thumbs");
   const verifyBtn = $("#verifyBtn");
-  let file = null;
+  let files = [];
 
-  function setFile(f) {
-    if (!f || !f.type.startsWith("image/")) return;
-    file = f;
-    preview.src = URL.createObjectURL(f);
-    preview.hidden = false;
-    prompt.hidden = true;
-    clearBtn.hidden = false;
-    verifyBtn.disabled = false;
+  function addFiles(list) {
+    for (const f of list) {
+      if (!f.type.startsWith("image/")) continue;
+      if (files.length >= MAX_IMAGES) break;
+      if (files.some(x => x.name === f.name && x.size === f.size)) continue; // de-dupe
+      files.push(f);
+    }
+    render();
   }
-  function clear() {
-    file = null; input.value = "";
-    preview.hidden = true; prompt.hidden = false; clearBtn.hidden = true; verifyBtn.disabled = true;
+  function removeAt(i) { files.splice(i, 1); render(); }
+  function render() {
+    thumbs.innerHTML = "";
+    files.forEach((f, i) => {
+      const url = URL.createObjectURL(f);
+      const el = html(`<div class="thumb"><img src="${url}" alt="${esc(f.name)}" /><button class="thumb-x" title="Remove" aria-label="Remove image">×</button></div>`);
+      el.querySelector(".thumb-x").addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); removeAt(i); });
+      thumbs.appendChild(el);
+    });
+    sub.textContent = files.length
+      ? `${files.length} of ${MAX_IMAGES} selected${files.length < MAX_IMAGES ? " · add more" : ""}`
+      : "or drag them here · up to 4";
+    verifyBtn.disabled = files.length === 0;
+    input.value = ""; // let the same file be re-picked after removal
   }
 
-  input.addEventListener("change", () => input.files[0] && setFile(input.files[0]));
-  wireDrop(zone, files => { input.files = files; setFile(files[0]); });
-  clearBtn.addEventListener("click", e => { e.preventDefault(); clear(); });
+  input.addEventListener("change", () => addFiles(input.files));
+  wireDrop(zone, list => addFiles(list));
 
   verifyBtn.addEventListener("click", async () => {
-    if (!file) return;
+    if (!files.length) return;
     const out = $("#singleResult");
-    out.innerHTML = spinner("Reading the label and checking it…");
+    out.innerHTML = spinner(files.length > 1 ? `Reading ${files.length} photos and checking them…` : "Reading the label and checking it…");
     verifyBtn.disabled = true;
 
     const fd = new FormData($("#appForm"));
-    fd.append("image", file);
+    files.forEach(f => fd.append("images", f));
     applyEngine(fd);
     try {
       const r = await fetch("/api/verify", { method: "POST", body: fd });
